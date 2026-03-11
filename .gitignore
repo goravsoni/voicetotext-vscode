@@ -1,0 +1,7 @@
+node_modules/
+out/
+*.vsix
+.DS_Store
+vsix-build/extension/out/
+vsix-build/extension/package.json
+vsix-build/extension/icon.png
