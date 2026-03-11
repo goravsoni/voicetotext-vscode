@@ -3,7 +3,7 @@
   "displayName": "Voice to Text — Local Whisper Transcription",
   "description": "Record and transcribe speech to text locally using OpenAI Whisper. 100% private — no cloud, no API keys. macOS with Metal GPU acceleration.",
   "version": "0.2.0",
-  "publisher": "voicetotext",
+  "publisher": "gorav",
   "license": "MIT",
   "icon": "icon.png",
   "repository": {

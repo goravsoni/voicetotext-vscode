@@ -4,4 +4,7 @@
   <Default Extension=".js" ContentType="application/javascript"/>
   <Default Extension=".map" ContentType="application/json"/>
   <Default Extension=".vsixmanifest" ContentType="text/xml"/>
+  <Default Extension=".png" ContentType="image/png"/>
+  <Default Extension=".md" ContentType="text/markdown"/>
+  <Default Extension=".txt" ContentType="text/plain"/>
 </Types>

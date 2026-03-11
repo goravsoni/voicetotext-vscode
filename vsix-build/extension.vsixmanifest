@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Language="en-US" Id="voicetotext" Version="0.2.0" Publisher="voicetotext"/>
+    <Identity Language="en-US" Id="voicetotext" Version="0.2.0" Publisher="gorav"/>
     <DisplayName>Voice to Text — Local Whisper Transcription</DisplayName>
     <Description xml:space="preserve">Record and transcribe speech to text locally using OpenAI Whisper. 100% private — no cloud, no API keys. macOS with Metal GPU acceleration.</Description>
     <Tags>voice,transcription,whisper,speech-to-text,dictation,stt,macos</Tags>
@@ -23,5 +23,8 @@
   <Assets>
     <Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/>
     <Asset Type="Microsoft.VisualStudio.Services.Icons.Default" Path="extension/icon.png" Addressable="true"/>
+    <Asset Type="Microsoft.VisualStudio.Services.Content.Details" Path="extension/README.md" Addressable="true"/>
+    <Asset Type="Microsoft.VisualStudio.Services.Content.Changelog" Path="extension/CHANGELOG.md" Addressable="true"/>
+    <Asset Type="Microsoft.VisualStudio.Services.Content.License" Path="extension/LICENSE.txt" Addressable="true"/>
   </Assets>
 </PackageManifest>
