@@ -2,14 +2,11 @@
   "name": "voicetotext",
   "displayName": "Voice to Text — Local Whisper Transcription",
   "description": "Record and transcribe speech to text locally using OpenAI Whisper. 100% private — no cloud, no API keys. macOS with Metal GPU acceleration.",
-  "version": "0.2.0",
+  "version": "0.6.4",
   "publisher": "gorav",
   "license": "MIT",
   "icon": "icon.png",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/nicholasareed/voicetotext"
-  },
+
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -52,13 +49,23 @@
       {
         "command": "voicetotext.switchModel",
         "title": "Voice to Text: Switch Whisper Model"
+      },
+      {
+        "command": "voicetotext.cancelRecording",
+        "title": "Voice to Text: Cancel Recording"
       }
     ],
     "keybindings": [
       {
         "command": "voicetotext.toggleRecording",
-        "key": "alt+;",
-        "mac": "alt+;"
+        "key": "cmd+shift+;",
+        "mac": "cmd+shift+;"
+      },
+      {
+        "command": "voicetotext.cancelRecording",
+        "key": "escape",
+        "mac": "escape",
+        "when": "voicetotext.isRecording"
       }
     ],
     "configuration": {
@@ -66,11 +73,13 @@
       "properties": {
         "voicetotext.model": {
           "type": "string",
-          "default": "large-v3-turbo",
-          "enum": ["large-v3-turbo", "base.en"],
+          "default": "small.en",
+          "enum": ["large-v3-turbo", "small", "small.en", "base.en"],
           "enumDescriptions": [
-            "Large v3 Turbo — Best accuracy, multilingual, ~1.5 GB download. Recommended for most users.",
-            "Base English — Fast and lightweight, English only, ~142 MB download. Great for quick dictation."
+            "Large v3 Turbo — Best accuracy, multilingual, ~1.5 GB download. Slowest but most accurate.",
+            "Small (Multilingual) — Good balance of speed and accuracy, supports translation, ~466 MB download.",
+            "Small English — Fast with good accuracy, English only, ~466 MB download. Recommended for English dictation.",
+            "Base English — Fastest, English only, ~142 MB download. Good for quick notes."
           ],
           "description": "Whisper model to use for transcription. Changing this will download the new model on next recording if not already present."
         },
