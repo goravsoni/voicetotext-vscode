@@ -441,6 +441,23 @@ function setupWebviewMessageHandler(webview: vscode.Webview, context: vscode.Ext
             }
         } else if (msg.type === 'setAudioDevice') {
             await cfg.update('audioDevice', msg.text, vscode.ConfigurationTarget.Global);
+        } else if (msg.type === 'deleteModel') {
+            const modelId = msg.id;
+            if (modelId && modelId in MODELS) {
+                const model = MODELS[modelId];
+                const modelFile = path.join(MODEL_DIR, model.file);
+                if (fs.existsSync(modelFile)) {
+                    const confirm = await vscode.window.showWarningMessage(
+                        `Delete ${model.label} (${model.size})? You can re-download it later.`,
+                        'Delete', 'Cancel'
+                    );
+                    if (confirm === 'Delete') {
+                        fs.unlinkSync(modelFile);
+                        vscode.window.showInformationMessage(`Deleted ${model.label}.`);
+                        refreshAllViews();
+                    }
+                }
+            }
         } else if (msg.type === 'toggleRecording') {
             vscode.commands.executeCommand('voicetotext.toggleRecording');
         }
@@ -553,6 +570,16 @@ function getHistoryHtml(): string {
         return `<option value="${id}"${selected}>${m.label} (${m.size})${suffix}</option>`;
     }).join('');
 
+    // Downloaded models list with delete buttons
+    const downloadedModels = Object.entries(MODELS)
+        .filter(([, m]) => fs.existsSync(path.join(MODEL_DIR, m.file)))
+        .map(([id, m]) => {
+            const isActive = id === currentModelId;
+            const activeTag = isActive ? ' <span class="badge">active</span>' : '';
+            const deleteBtn = isActive ? '' : ` <button class="btn btn-danger btn-sm" data-action="deleteModel" data-model="${id}">Delete</button>`;
+            return `<div class="model-row">${m.label} (${m.size})${activeTag}${deleteBtn}</div>`;
+        }).join('');
+
     // Common language options
     const languages = [
         { code: 'en', name: 'English' }, { code: 'es', name: 'Spanish' },
@@ -587,22 +614,30 @@ function getHistoryHtml(): string {
         }
     } catch { /* keep just auto-detect */ }
 
+    const PAGE_SIZE = 6;
     const rows = entries.map((e, i) => {
         const date = new Date(e.timestamp);
-        const timeStr = date.toLocaleString();
         const dur = (e.durationMs / 1000).toFixed(1);
         const safe = e.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // Relative time
+        const now = Date.now();
+        const diff = now - date.getTime();
+        let timeStr = '';
+        if (diff < 60000) { timeStr = 'Just now'; }
+        else if (diff < 3600000) { timeStr = `${Math.floor(diff / 60000)}m ago`; }
+        else if (diff < 86400000) { timeStr = `${Math.floor(diff / 3600000)}h ago`; }
+        else { timeStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
         return `
         <div class="entry">
-            <div class="meta">
+            <div class="entry-header">
                 <span class="time">${timeStr}</span>
                 <span class="badge">${dur}s</span>
+                <span class="actions">
+                    <button class="icon-btn" data-index="${i}" data-action="copy" title="Copy">📋</button>
+                    <button class="icon-btn icon-btn-danger" data-index="${i}" data-action="delete" title="Delete">✕</button>
+                </span>
             </div>
             <div class="text">${safe}</div>
-            <div class="actions">
-                <button class="btn btn-primary" data-index="${i}" data-action="copy">Copy</button>
-                <button class="btn btn-danger" data-index="${i}" data-action="delete">Delete</button>
-            </div>
         </div>`;
     }).join('');
 
@@ -613,120 +648,24 @@ function getHistoryHtml(): string {
         font-family: var(--vscode-font-family);
         color: var(--vscode-foreground);
         background: var(--vscode-editor-background);
-        padding: 16px; line-height: 1.5;
-    }
-    .header { margin-bottom: 12px; }
-    .header h1 { font-size: 1.3em; margin-bottom: 2px; }
-    .header .count {
-        font-size: 0.85em; color: var(--vscode-descriptionForeground);
-        margin-bottom: 8px;
-    }
-
-    /* ── Settings panel ── */
-    .settings {
-        background: var(--vscode-sideBar-background, var(--vscode-editor-background));
-        border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
-        border-radius: 8px; padding: 12px; margin-bottom: 16px;
-    }
-    .settings-title {
-        font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.5px;
-        color: var(--vscode-descriptionForeground); margin-bottom: 10px;
-        cursor: pointer; user-select: none;
-    }
-    .settings-title:hover { color: var(--vscode-foreground); }
-    .settings-body { display: flex; flex-direction: column; gap: 8px; }
-    .setting-row {
-        display: flex; align-items: center; gap: 8px;
-    }
-    .setting-row label {
-        min-width: 70px; font-size: 0.85em;
-        color: var(--vscode-descriptionForeground);
-    }
-    .setting-row select, .setting-row input {
-        flex: 1;
-        background: var(--vscode-dropdown-background, var(--vscode-input-background));
-        color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
-        border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
-        padding: 4px 8px; border-radius: 4px;
-        font-size: 0.85em; font-family: var(--vscode-font-family);
-    }
-
-    /* ── Toolbar ── */
-    .toolbar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
-    .toolbar input {
-        flex: 1;
-        background: var(--vscode-input-background);
-        color: var(--vscode-input-foreground);
-        border: 1px solid var(--vscode-input-border, transparent);
-        padding: 5px 10px; border-radius: 4px;
-        font-size: 0.85em; font-family: var(--vscode-font-family);
-        outline: none;
-    }
-    .toolbar input:focus { border-color: var(--vscode-focusBorder); }
-    .toolbar button {
-        background: var(--vscode-button-secondaryBackground);
-        color: var(--vscode-button-secondaryForeground);
-        border: none; padding: 5px 12px; cursor: pointer;
-        border-radius: 4px; font-size: 0.85em;
-    }
-    .toolbar button:hover { background: var(--vscode-button-secondaryHoverBackground); }
-
-    /* ── Entries ── */
-    .entry {
-        background: var(--vscode-editor-inactiveSelectionBackground);
-        border-radius: 8px; padding: 12px; margin-bottom: 10px;
-        border: 1px solid transparent; transition: border-color 0.15s;
-    }
-    .entry:hover { border-color: var(--vscode-focusBorder); }
-    .meta {
-        display: flex; align-items: center; gap: 10px;
-        font-size: 0.8em; color: var(--vscode-descriptionForeground);
-        margin-bottom: 6px;
-    }
-    .badge {
-        background: var(--vscode-badge-background);
-        color: var(--vscode-badge-foreground);
-        padding: 1px 7px; border-radius: 10px; font-size: 0.8em;
-    }
-    .text { margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
-    .actions { display: flex; gap: 6px; }
-    .btn {
-        border: none; padding: 4px 12px; border-radius: 4px;
-        cursor: pointer; font-size: 0.82em; transition: opacity 0.15s;
-    }
-    .btn:hover { opacity: 0.85; }
-    .btn-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-    .btn-secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-    .btn-danger { background: transparent; color: var(--vscode-errorForeground); border: 1px solid var(--vscode-errorForeground); }
-    .empty {
-        text-align: center; color: var(--vscode-descriptionForeground);
-        padding: 48px 16px; font-size: 0.95em;
-    }
-    .empty .hint { font-size: 0.85em; margin-top: 8px; opacity: 0.7; }
-    .shortcut {
-        font-family: var(--vscode-editor-font-family);
-        background: var(--vscode-badge-background);
-        color: var(--vscode-badge-foreground);
-        padding: 1px 6px; border-radius: 4px; font-size: 0.85em;
+        padding: 12px; line-height: 1.5;
     }
 
     /* ── Record button ── */
     .record-btn {
         display: flex; align-items: center; justify-content: center; gap: 8px;
-        width: 100%; padding: 10px 16px; margin-bottom: 16px;
+        width: 100%; padding: 12px 16px; margin-bottom: 12px;
         background: var(--vscode-button-background);
         color: var(--vscode-button-foreground);
-        border: none; border-radius: 8px; cursor: pointer;
+        border: none; border-radius: 10px; cursor: pointer;
         font-size: 0.95em; font-family: var(--vscode-font-family);
         transition: background 0.15s, transform 0.1s;
         position: relative; overflow: hidden;
-        min-height: 44px;
+        min-height: 48px;
     }
     .record-btn:hover { background: var(--vscode-button-hoverBackground); }
     .record-btn:active { transform: scale(0.98); }
-    .record-btn.recording {
-        background: var(--vscode-button-background);
-    }
+    .record-btn.recording { background: var(--vscode-button-background); }
     .record-btn .btn-content { display: flex; align-items: center; gap: 8px; z-index: 1; }
     .record-btn canvas {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -738,13 +677,144 @@ function getHistoryHtml(): string {
         font-family: var(--vscode-editor-font-family);
         background: rgba(255,255,255,0.15);
         padding: 1px 6px; border-radius: 4px; font-size: 0.8em;
-        opacity: 0.8;
+        opacity: 0.7;
     }
+
+    /* ── Search ── */
+    .search-bar {
+        margin-bottom: 12px;
+    }
+    .search-bar input {
+        width: 100%;
+        background: var(--vscode-input-background);
+        color: var(--vscode-input-foreground);
+        border: 1px solid var(--vscode-input-border, transparent);
+        padding: 6px 10px; border-radius: 6px;
+        font-size: 0.85em; font-family: var(--vscode-font-family);
+        outline: none;
+    }
+    .search-bar input:focus { border-color: var(--vscode-focusBorder); }
+
+    /* ── Entries ── */
+    .entry {
+        background: var(--vscode-editor-inactiveSelectionBackground);
+        border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+        border: 1px solid transparent; transition: border-color 0.15s;
+    }
+    .entry:hover { border-color: var(--vscode-focusBorder); }
+    .entry:hover .actions { opacity: 1; }
+    .entry-header {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 0.78em; color: var(--vscode-descriptionForeground);
+        margin-bottom: 4px;
+    }
+    .badge {
+        background: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        padding: 0px 6px; border-radius: 10px; font-size: 0.8em;
+    }
+    .actions {
+        margin-left: auto; display: flex; gap: 4px;
+        opacity: 0; transition: opacity 0.15s;
+    }
+    .icon-btn {
+        background: none; border: none; cursor: pointer;
+        font-size: 0.85em; padding: 2px 4px; border-radius: 4px;
+        transition: background 0.1s;
+    }
+    .icon-btn:hover { background: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.1)); }
+    .icon-btn-danger:hover { background: rgba(255,80,80,0.15); }
+    .text {
+        font-size: 0.9em; white-space: pre-wrap; word-break: break-word;
+        line-height: 1.45;
+    }
+
+    /* ── Section divider ── */
+    .section-label {
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.5px;
+        color: var(--vscode-descriptionForeground);
+        margin: 16px 0 8px 0; padding: 0 2px;
+    }
+    .section-label button {
+        background: none; border: none; cursor: pointer;
+        color: var(--vscode-descriptionForeground);
+        font-size: 1em; padding: 0;
+    }
+    .section-label button:hover { color: var(--vscode-errorForeground); }
+
+    /* ── Settings panel ── */
+    .settings {
+        background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+        border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+        border-radius: 8px; padding: 10px 12px; margin-top: 8px;
+    }
+    .settings-title {
+        font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.5px;
+        color: var(--vscode-descriptionForeground);
+        cursor: pointer; user-select: none;
+    }
+    .settings-title:hover { color: var(--vscode-foreground); }
+    .settings-body { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .setting-row {
+        display: flex; align-items: center; gap: 8px;
+    }
+    .setting-row label {
+        min-width: 55px; font-size: 0.82em;
+        color: var(--vscode-descriptionForeground);
+    }
+    .setting-row select {
+        flex: 1;
+        background: var(--vscode-dropdown-background, var(--vscode-input-background));
+        color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+        border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+        padding: 4px 8px; border-radius: 4px;
+        font-size: 0.82em; font-family: var(--vscode-font-family);
+    }
+    .model-row {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 0.8em; padding: 3px 0;
+        color: var(--vscode-foreground);
+    }
+    .model-list { margin-top: 6px; }
+    .btn-sm {
+        background: transparent; color: var(--vscode-errorForeground);
+        border: 1px solid var(--vscode-errorForeground);
+        padding: 1px 8px; border-radius: 4px; font-size: 0.75em;
+        cursor: pointer;
+    }
+    .btn-sm:hover { opacity: 0.8; }
+
+    /* ── Empty state ── */
+    .empty {
+        text-align: center; color: var(--vscode-descriptionForeground);
+        padding: 40px 16px; font-size: 0.9em;
+    }
+    .empty .hint { font-size: 0.82em; margin-top: 8px; opacity: 0.6; }
+    .shortcut {
+        font-family: var(--vscode-editor-font-family);
+        background: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        padding: 1px 6px; border-radius: 4px; font-size: 0.85em;
+    }
+    .entry-hidden { display: none; }
+    .pagination {
+        display: flex; align-items: center; justify-content: center; gap: 4px;
+        margin: 8px 0; font-size: 0.82em;
+    }
+    .pagination button {
+        background: transparent; border: none; cursor: pointer;
+        color: var(--vscode-descriptionForeground);
+        padding: 2px 8px; border-radius: 4px;
+        font-family: var(--vscode-font-family); font-size: 0.9em;
+    }
+    .pagination button:hover { background: var(--vscode-list-hoverBackground, rgba(255,255,255,0.05)); }
+    .pagination button.active {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+    }
+    .pagination button:disabled { opacity: 0.3; cursor: default; }
 </style></head><body>
-    <div class="header">
-        <h1>🎙 Voice to Text</h1>
-        <div class="count">${entries.length} transcription${entries.length !== 1 ? 's' : ''}</div>
-    </div>
 
     <button id="recordBtn" class="record-btn">
         <canvas id="waveformCanvas"></canvas>
@@ -755,6 +825,22 @@ function getHistoryHtml(): string {
         </span>
     </button>
 
+    ${entries.length > 0 ? `
+    <div class="search-bar"><input id="searchBox" type="text" placeholder="Search ${entries.length} transcription${entries.length !== 1 ? 's' : ''}..." /></div>
+    <div class="section-label"><span>History</span><button id="clearAll" title="Clear all">🗑</button></div>
+    ` : ''}
+
+    <div id="entriesContainer">
+    ${entries.length === 0
+        ? `<div class="empty">
+                No transcriptions yet.<br>
+                Press <span class="shortcut">⌘⇧;</span> to start recording.
+                <div class="hint">100% local — nothing leaves your machine.</div>
+           </div>`
+        : rows}
+    </div>
+    ${entries.length > PAGE_SIZE ? '<div id="pagination" class="pagination"></div>' : ''}
+
     <div class="settings">
         <div class="settings-title" id="settingsToggle">⚙ Settings ▾</div>
         <div class="settings-body" id="settingsBody">
@@ -762,6 +848,7 @@ function getHistoryHtml(): string {
                 <label for="modelPicker">Model</label>
                 <select id="modelPicker">${modelOptions}</select>
             </div>
+            ${downloadedModels ? `<div class="model-list">${downloadedModels}</div>` : ''}
             <div class="setting-row">
                 <label for="langPicker">Language</label>
                 <select id="langPicker">${langOptions}</select>
@@ -771,17 +858,6 @@ function getHistoryHtml(): string {
                 <select id="devicePicker">${deviceOptions}</select>
             </div>
         </div>
-    </div>
-
-    ${entries.length > 0 ? '<div class="toolbar"><input id="searchBox" type="text" placeholder="Search transcriptions..." /><button id="clearAll">Clear All</button></div>' : ''}
-    <div id="entriesContainer">
-    ${entries.length === 0
-        ? `<div class="empty">
-                No transcriptions yet.<br>
-                Press <span class="shortcut">⌘⇧;</span> to start recording.
-                <div class="hint">Audio is recorded and transcribed entirely on your machine.</div>
-           </div>`
-        : rows}
     </div>
     <script>
         const vscode = acquireVsCodeApi();
@@ -825,6 +901,13 @@ function getHistoryHtml(): string {
             }
             const action = btn.dataset.action;
             const index = btn.dataset.index;
+            if (action === 'deleteModel') {
+                const modelId = btn.dataset.model;
+                if (modelId) {
+                    vscode.postMessage({ type: 'deleteModel', id: modelId, text: '' });
+                }
+                return;
+            }
             if (action && index !== undefined) {
                 const entry = entries[parseInt(index)];
                 if (!entry) return;
@@ -843,6 +926,47 @@ function getHistoryHtml(): string {
                     const text = div.querySelector('.text')?.textContent?.toLowerCase() || '';
                     div.style.display = text.includes(query) ? '' : 'none';
                 });
+                // Hide pagination when searching
+                const pag = document.getElementById('pagination');
+                if (pag) pag.style.display = query ? 'none' : 'flex';
+            });
+        }
+
+        /* Pagination — pages of 6 */
+        const PAGE_SIZE = 6;
+        let currentPage = 0;
+        const allEntries = document.getElementById('entriesContainer')?.querySelectorAll('.entry') || [];
+        const totalPages = Math.ceil(allEntries.length / PAGE_SIZE);
+
+        function showPage(page) {
+            currentPage = page;
+            const start = page * PAGE_SIZE;
+            const end = start + PAGE_SIZE;
+            allEntries.forEach((div, i) => {
+                div.style.display = (i >= start && i < end) ? '' : 'none';
+            });
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const pag = document.getElementById('pagination');
+            if (!pag || totalPages <= 1) return;
+            let html = '<button class="pg-prev" ' + (currentPage === 0 ? 'disabled' : '') + '>&lsaquo;</button>';
+            for (let i = 0; i < totalPages; i++) {
+                html += '<button class="pg-num' + (i === currentPage ? ' active' : '') + '" data-page="' + i + '">' + (i + 1) + '</button>';
+            }
+            html += '<button class="pg-next" ' + (currentPage === totalPages - 1 ? 'disabled' : '') + '>&rsaquo;</button>';
+            pag.innerHTML = html;
+        }
+
+        if (totalPages > 1) {
+            showPage(0);
+            document.getElementById('pagination')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn || btn.disabled) return;
+                if (btn.classList.contains('pg-prev')) showPage(currentPage - 1);
+                else if (btn.classList.contains('pg-next')) showPage(currentPage + 1);
+                else if (btn.dataset.page !== undefined) showPage(parseInt(btn.dataset.page));
             });
         }
 
@@ -851,7 +975,7 @@ function getHistoryHtml(): string {
         const recordBtn = document.getElementById('recordBtn');
         const waveCtx = waveCanvas ? waveCanvas.getContext('2d') : null;
         const levelHistory = [];
-        const MAX_BARS = 30;
+        const MAX_BARS = 40;
         let animFrameId = null;
 
         function resizeCanvas() {
@@ -869,13 +993,13 @@ function getHistoryHtml(): string {
             const barCount = levelHistory.length;
             if (barCount === 0) { animFrameId = requestAnimationFrame(drawWaveform); return; }
 
-            const barWidth = Math.max(3, (w / MAX_BARS) * 0.65);
-            const gap = (w / MAX_BARS) * 0.35;
+            const barWidth = Math.max(2, (w / MAX_BARS) * 0.4);
+            const gap = (w / MAX_BARS) * 0.6;
             const startX = w - barCount * (barWidth + gap);
 
             for (let i = 0; i < barCount; i++) {
                 const level = levelHistory[i];
-                const barH = Math.max(3, level * h * 0.85);
+                const barH = Math.max(3, level * h * 0.95);
                 const x = startX + i * (barWidth + gap);
                 const y = (h - barH) / 2;
 

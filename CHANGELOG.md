@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.7.5 — 2026-03-11
+
+- History pagination: page navigation (1, 2, 3…) with prev/next arrows, 6 entries per page
+- Search hides pagination and filters across all entries
+
+## 0.7.4 — 2026-03-11
+
+- History pagination: shows 8 transcriptions at a time with "Show more" button
+
+## 0.7.3 — 2026-03-11
+
+- Settings panel now open by default
+
+## 0.7.2 — 2026-03-11
+
+- History panel UX redesign: larger record button, relative timestamps ("2m ago"), hover-only actions, collapsible settings, cleaner layout
+- Slimmer waveform bars (40 bars at 95% height) for a more dynamic visual
+- Cancel recording sound changed to Funk
+
+## 0.7.0 — 2026-03-11
+
+- Model management: delete downloaded models from the settings panel to free disk space
+- Recording button stays accent color instead of turning red
+- Smoother waveform animation (throttled to 150ms, 30 bars, smoothed levels)
+- Recording sounds updated to Bottle (start) and Pop (stop)
+
 ## 0.6.2 — 2026-03-11
 
 - Waveform visualizer now renders inside the record button — replaces button text with live audio bars while recording
